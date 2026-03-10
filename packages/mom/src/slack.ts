@@ -13,6 +13,7 @@ export interface SlackEvent {
 	type: "mention" | "dm";
 	channel: string;
 	ts: string;
+	thread_ts?: string;
 	user: string;
 	text: string;
 	files?: Array<{ name?: string; url_private_download?: string; url_private?: string }>;
@@ -67,9 +68,10 @@ export interface SlackContext {
 
 export interface MomHandler {
 	/**
-	 * Check if channel is currently running (SYNC)
+	 * Check if session is currently running (SYNC).
+	 * sessionKey format: "channelId:rootTs"
 	 */
-	isRunning(channelId: string): boolean;
+	isRunning(sessionKey: string): boolean;
 
 	/**
 	 * Handle an event that triggers mom (ASYNC)
@@ -82,7 +84,7 @@ export interface MomHandler {
 	 * Handle stop command (ASYNC)
 	 * Called when user says "stop" while mom is running
 	 */
-	handleStop(channelId: string, slack: SlackBot): Promise<void>;
+	handleStop(sessionKey: string, channelId: string, slack: SlackBot): Promise<void>;
 }
 
 // ============================================================================
@@ -277,6 +279,7 @@ export class SlackBot {
 				channel: string;
 				user: string;
 				ts: string;
+				thread_ts?: string;
 				files?: Array<{ name: string; url_private_download?: string; url_private?: string }>;
 			};
 
@@ -286,10 +289,15 @@ export class SlackBot {
 				return;
 			}
 
+			// Derive session key from thread context
+			const rootTs = e.thread_ts ?? e.ts;
+			const sessionKey = `${e.channel}:${rootTs}`;
+
 			const slackEvent: SlackEvent = {
 				type: "mention",
 				channel: e.channel,
 				ts: e.ts,
+				thread_ts: e.thread_ts,
 				user: e.user,
 				text: e.text.replace(/<@[A-Z0-9]+>/gi, "").trim(),
 				files: e.files,
@@ -310,8 +318,8 @@ export class SlackBot {
 
 			// Check for stop command - execute immediately, don't queue!
 			if (slackEvent.text.toLowerCase().trim() === "stop") {
-				if (this.handler.isRunning(e.channel)) {
-					this.handler.handleStop(e.channel, this); // Don't await, don't queue
+				if (this.handler.isRunning(sessionKey)) {
+					this.handler.handleStop(sessionKey, e.channel, this); // Don't await, don't queue
 				} else {
 					this.postMessage(e.channel, "_Nothing running_");
 				}
@@ -319,11 +327,11 @@ export class SlackBot {
 				return;
 			}
 
-			// SYNC: Check if busy
-			if (this.handler.isRunning(e.channel)) {
-				this.postMessage(e.channel, "_Already working. Say `@mom stop` to cancel._");
+			// SYNC: Check if busy (per-thread)
+			if (this.handler.isRunning(sessionKey)) {
+				this.postMessage(e.channel, "_Already working in this thread. Say `@mom stop` to cancel._");
 			} else {
-				this.getQueue(e.channel).enqueue(() => this.handler.handleEvent(slackEvent, this));
+				this.getQueue(sessionKey).enqueue(() => this.handler.handleEvent(slackEvent, this));
 			}
 
 			ack();
@@ -336,6 +344,7 @@ export class SlackBot {
 				channel: string;
 				user?: string;
 				ts: string;
+				thread_ts?: string;
 				channel_type?: string;
 				subtype?: string;
 				bot_id?: string;
@@ -369,6 +378,7 @@ export class SlackBot {
 				type: isDM ? "dm" : "mention",
 				channel: e.channel,
 				ts: e.ts,
+				thread_ts: e.thread_ts,
 				user: e.user,
 				text: (e.text || "").replace(/<@[A-Z0-9]+>/gi, "").trim(),
 				files: e.files,
@@ -387,10 +397,13 @@ export class SlackBot {
 
 			// Only trigger handler for DMs
 			if (isDM) {
+				const dmRootTs = e.thread_ts ?? e.ts;
+				const dmSessionKey = `${e.channel}:${dmRootTs}`;
+
 				// Check for stop command - execute immediately, don't queue!
 				if (slackEvent.text.toLowerCase().trim() === "stop") {
-					if (this.handler.isRunning(e.channel)) {
-						this.handler.handleStop(e.channel, this); // Don't await, don't queue
+					if (this.handler.isRunning(dmSessionKey)) {
+						this.handler.handleStop(dmSessionKey, e.channel, this); // Don't await, don't queue
 					} else {
 						this.postMessage(e.channel, "_Nothing running_");
 					}
@@ -398,10 +411,10 @@ export class SlackBot {
 					return;
 				}
 
-				if (this.handler.isRunning(e.channel)) {
+				if (this.handler.isRunning(dmSessionKey)) {
 					this.postMessage(e.channel, "_Already working. Say `stop` to cancel._");
 				} else {
-					this.getQueue(e.channel).enqueue(() => this.handler.handleEvent(slackEvent, this));
+					this.getQueue(dmSessionKey).enqueue(() => this.handler.handleEvent(slackEvent, this));
 				}
 			}
 

@@ -12,19 +12,17 @@ import {
 	SessionManager,
 	type Skill,
 } from "@mariozechner/pi-coding-agent";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync } from "fs";
 import { mkdir, writeFile } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
+import type { ChatMessage, ChatResponseContext, PlatformInfo } from "./adapter.js";
+import type { AgentConfig } from "./config.js";
+import { loadAgentConfig } from "./config.js";
 import { createMomSettingsManager, syncLogToSessionManager } from "./context.js";
 import * as log from "./log.js";
 import { createExecutor, type SandboxConfig } from "./sandbox.js";
-import type { ChannelInfo, SlackContext, UserInfo } from "./slack.js";
-import type { ChannelStore } from "./store.js";
 import { createMomTools, setUploadFunction } from "./tools/index.js";
-
-// Hardcoded model for now - TODO: make configurable (issue #63)
-const model = getModel("anthropic", "claude-sonnet-4-5");
 
 export interface PendingMessage {
 	userName: string;
@@ -35,23 +33,11 @@ export interface PendingMessage {
 
 export interface AgentRunner {
 	run(
-		ctx: SlackContext,
-		store: ChannelStore,
-		pendingMessages?: PendingMessage[],
+		message: ChatMessage,
+		responseCtx: ChatResponseContext,
+		platform: PlatformInfo,
 	): Promise<{ stopReason: string; errorMessage?: string }>;
 	abort(): void;
-}
-
-async function getAnthropicApiKey(authStorage: AuthStorage): Promise<string> {
-	const key = await authStorage.getApiKey("anthropic");
-	if (!key) {
-		throw new Error(
-			"No API key found for anthropic.\n\n" +
-				"Set an API key environment variable, or use /login with Anthropic and link to auth.json from " +
-				join(homedir(), ".pi", "mom", "auth.json"),
-		);
-	}
-	return key;
 }
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
@@ -143,8 +129,7 @@ function buildSystemPrompt(
 	channelId: string,
 	memory: string,
 	sandboxConfig: SandboxConfig,
-	channels: ChannelInfo[],
-	users: UserInfo[],
+	platform: PlatformInfo,
 	skills: Skill[],
 ): string {
 	const channelPath = `${workspacePath}/${channelId}`;
@@ -152,11 +137,15 @@ function buildSystemPrompt(
 
 	// Format channel mappings
 	const channelMappings =
-		channels.length > 0 ? channels.map((c) => `${c.id}\t#${c.name}`).join("\n") : "(no channels loaded)";
+		platform.channels.length > 0
+			? platform.channels.map((c) => `${c.id}\t#${c.name}`).join("\n")
+			: "(no channels loaded)";
 
 	// Format user mappings
 	const userMappings =
-		users.length > 0 ? users.map((u) => `${u.id}\t@${u.userName}\t${u.displayName}`).join("\n") : "(no users loaded)";
+		platform.users.length > 0
+			? platform.users.map((u) => `${u.id}\t@${u.userName}\t${u.displayName}`).join("\n")
+			: "(no users loaded)";
 
 	const envDescription = isDocker
 		? `You are running inside a Docker container (Alpine Linux).
@@ -167,18 +156,16 @@ function buildSystemPrompt(
 - Bash working directory: ${process.cwd()}
 - Be careful with system modifications`;
 
-	return `You are mom, a Slack bot assistant. Be concise. No emojis.
+	return `You are mom, a ${platform.name} bot assistant. Be concise. No emojis.
 
 ## Context
 - For current date/time, use: date
 - You have access to previous conversation context including tool results from prior turns.
 - For older history beyond your context, search log.jsonl (contains user messages and your final responses, but not tool results).
 
-## Slack Formatting (mrkdwn, NOT Markdown)
-Bold: *text*, Italic: _text_, Code: \`code\`, Block: \`\`\`code\`\`\`, Links: <url|text>
-Do NOT use **double asterisks** or [markdown](links).
+${platform.formattingGuide}
 
-## Slack IDs
+## Platform IDs
 Channels: ${channelMappings}
 
 Users: ${userMappings}
@@ -275,7 +262,7 @@ You receive a message like:
 Immediate and one-shot events auto-delete after triggering. Periodic events persist until you delete them.
 
 ### Silent Completion
-For periodic events where there's nothing to report, respond with just \`[SILENT]\` (no other text). This deletes the status message and posts nothing to Slack. Use this to avoid spamming the channel when periodic checks find nothing actionable.
+For periodic events where there's nothing to report, respond with just \`[SILENT]\` (no other text). This deletes the status message and posts nothing to the platform. Use this to avoid spamming the channel when periodic checks find nothing actionable.
 
 ### Debouncing
 When writing programs that create immediate events (email watchers, webhook handlers, etc.), always debounce. If 50 emails arrive in a minute, don't create 50 immediate events. Instead collect events over a window and create ONE immediate event summarizing what happened, or just signal "new activity, check inbox" rather than per-item events. Or simpler: use a periodic event to check for new items every N minutes instead of immediate events.
@@ -322,7 +309,7 @@ grep '"userName":"mario"' log.jsonl | tail -20 | jq -c '{date: .date[0:19], text
 - read: Read files
 - write: Create/overwrite files
 - edit: Surgical file edits
-- attach: Share files to Slack
+- attach: Share files to the platform
 
 Each tool requires a "label" parameter (shown to user).
 `;
@@ -388,19 +375,26 @@ function formatToolArgsForSlack(_toolName: string, args: Record<string, unknown>
 	return lines.join("\n");
 }
 
-// Cache runners per channel
-const channelRunners = new Map<string, AgentRunner>();
+// Cache runners per session key
+const sessionRunners = new Map<string, AgentRunner>();
 
 /**
- * Get or create an AgentRunner for a channel.
- * Runners are cached - one per channel, persistent across messages.
+ * Get or create an AgentRunner for a session.
+ * Runners are cached - one per sessionKey, persistent across messages.
  */
-export function getOrCreateRunner(sandboxConfig: SandboxConfig, channelId: string, channelDir: string): AgentRunner {
-	const existing = channelRunners.get(channelId);
+export function getOrCreateRunner(
+	sandboxConfig: SandboxConfig,
+	sessionKey: string,
+	channelId: string,
+	channelDir: string,
+	workspaceDir: string,
+): AgentRunner {
+	const existing = sessionRunners.get(sessionKey);
 	if (existing) return existing;
 
-	const runner = createRunner(sandboxConfig, channelId, channelDir);
-	channelRunners.set(channelId, runner);
+	const agentConfig = loadAgentConfig(workspaceDir);
+	const runner = createRunner(sandboxConfig, sessionKey, channelId, channelDir, agentConfig);
+	sessionRunners.set(sessionKey, runner);
 	return runner;
 }
 
@@ -408,21 +402,37 @@ export function getOrCreateRunner(sandboxConfig: SandboxConfig, channelId: strin
  * Create a new AgentRunner for a channel.
  * Sets up the session and subscribes to events once.
  */
-function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDir: string): AgentRunner {
+function createRunner(
+	sandboxConfig: SandboxConfig,
+	sessionKey: string,
+	channelId: string,
+	channelDir: string,
+	agentConfig: AgentConfig,
+): AgentRunner {
 	const executor = createExecutor(sandboxConfig);
 	const workspacePath = executor.getWorkspacePath(channelDir.replace(`/${channelId}`, ""));
 
 	// Create tools
 	const tools = createMomTools(executor);
 
+	// Resolve model from config
+	// Use 'as any' cast because agentConfig.provider/model are plain strings,
+	// while getModel() has constrained generic types for known providers.
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const model = (getModel as any)(agentConfig.provider, agentConfig.model);
+
 	// Initial system prompt (will be updated each run with fresh memory/channels/users/skills)
 	const memory = getMemory(channelDir);
 	const skills = loadMomSkills(channelDir, workspacePath);
-	const systemPrompt = buildSystemPrompt(workspacePath, channelId, memory, sandboxConfig, [], [], skills);
+	const emptyPlatform: PlatformInfo = { name: "slack", formattingGuide: "", channels: [], users: [] };
+	const systemPrompt = buildSystemPrompt(workspacePath, channelId, memory, sandboxConfig, emptyPlatform, skills);
 
 	// Create session manager and settings manager
-	// Use a fixed context.jsonl file per channel (not timestamped like coding-agent)
-	const contextFile = join(channelDir, "context.jsonl");
+	// Per-session context file: {channelDir}/sessions/{rootTs}/context.jsonl
+	const rootTs = sessionKey.includes(":") ? sessionKey.split(":").pop()! : sessionKey;
+	const sessionDir = join(channelDir, "sessions", rootTs);
+	mkdirSync(sessionDir, { recursive: true });
+	const contextFile = join(sessionDir, "context.jsonl");
 	const sessionManager = SessionManager.open(contextFile, channelDir);
 	const settingsManager = createMomSettingsManager(join(channelDir, ".."));
 
@@ -436,11 +446,18 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 		initialState: {
 			systemPrompt,
 			model,
-			thinkingLevel: "off",
+			thinkingLevel: (agentConfig.thinkingLevel as "off" | "low" | "medium" | "high" | undefined) ?? "off",
 			tools,
 		},
 		convertToLlm,
-		getApiKey: async () => getAnthropicApiKey(authStorage),
+		getApiKey: async () => {
+			const key = await modelRegistry.getApiKey(model);
+			if (!key)
+				throw new Error(
+					`No API key for provider "${model.provider}". Set the appropriate environment variable or configure via auth.json`,
+				);
+			return key;
+		},
 	});
 
 	// Load existing messages
@@ -478,7 +495,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 
 	// Mutable per-run state - event handler references this
 	const runState = {
-		ctx: null as SlackContext | null,
+		responseCtx: null as ChatResponseContext | null,
 		logCtx: null as { channelId: string; userName?: string; channelName?: string } | null,
 		queue: null as {
 			enqueue(fn: () => Promise<void>, errorContext: string): void;
@@ -499,9 +516,9 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 	// Subscribe to events ONCE
 	session.subscribe(async (event) => {
 		// Skip if no active run
-		if (!runState.ctx || !runState.logCtx || !runState.queue) return;
+		if (!runState.responseCtx || !runState.logCtx || !runState.queue) return;
 
-		const { ctx, logCtx, queue, pendingTools } = runState;
+		const { responseCtx, logCtx, queue, pendingTools } = runState;
 
 		if (event.type === "tool_execution_start") {
 			const agentEvent = event as AgentEvent & { type: "tool_execution_start" };
@@ -515,7 +532,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			});
 
 			log.logToolStart(logCtx, agentEvent.toolName, label, agentEvent.args as Record<string, unknown>);
-			queue.enqueue(() => ctx.respond(`_→ ${label}_`, false), "tool label");
+			queue.enqueue(() => responseCtx.respond(`_→ ${label}_`), "tool label");
 		} else if (event.type === "tool_execution_end") {
 			const agentEvent = event as AgentEvent & { type: "tool_execution_end" };
 			const resultStr = extractToolResultText(agentEvent.result);
@@ -545,7 +562,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			queue.enqueueMessage(threadMessage, "thread", "tool result thread", false);
 
 			if (agentEvent.isError) {
-				queue.enqueue(() => ctx.respond(`_Error: ${truncate(resultStr, 200)}_`, false), "tool error");
+				queue.enqueue(() => responseCtx.respond(`_Error: ${truncate(resultStr, 200)}_`), "tool error");
 			}
 		} else if (event.type === "message_start") {
 			const agentEvent = event as AgentEvent & { type: "message_start" };
@@ -603,7 +620,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			}
 		} else if (event.type === "auto_compaction_start") {
 			log.logInfo(`Auto-compaction started (reason: ${(event as any).reason})`);
-			queue.enqueue(() => ctx.respond("_Compacting context..._", false), "compaction start");
+			queue.enqueue(() => responseCtx.respond("_Compacting context..._"), "compaction start");
 		} else if (event.type === "auto_compaction_end") {
 			const compEvent = event as any;
 			if (compEvent.result) {
@@ -615,13 +632,13 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			const retryEvent = event as any;
 			log.logWarning(`Retrying (${retryEvent.attempt}/${retryEvent.maxAttempts})`, retryEvent.errorMessage);
 			queue.enqueue(
-				() => ctx.respond(`_Retrying (${retryEvent.attempt}/${retryEvent.maxAttempts})..._`, false),
+				() => responseCtx.respond(`_Retrying (${retryEvent.attempt}/${retryEvent.maxAttempts})..._`),
 				"retry",
 			);
 		}
 	});
 
-	// Slack message limit
+	// Message limit constant
 	const SLACK_MAX_LENGTH = 40000;
 	const splitForSlack = (text: string): string[] => {
 		if (text.length <= SLACK_MAX_LENGTH) return [text];
@@ -640,16 +657,19 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 
 	return {
 		async run(
-			ctx: SlackContext,
-			_store: ChannelStore,
-			_pendingMessages?: PendingMessage[],
+			message: ChatMessage,
+			responseCtx: ChatResponseContext,
+			platform: PlatformInfo,
 		): Promise<{ stopReason: string; errorMessage?: string }> {
+			// Extract channelId from sessionKey (format: "channelId:rootTs" or just "channelId")
+			const sessionChannel = message.sessionKey.split(":")[0];
+
 			// Ensure channel directory exists
 			await mkdir(channelDir, { recursive: true });
 
 			// Sync messages from log.jsonl that arrived while we were offline or busy
 			// Exclude the current message (it will be added via prompt())
-			const syncedCount = syncLogToSessionManager(sessionManager, channelDir, ctx.message.ts);
+			const syncedCount = syncLogToSessionManager(sessionManager, channelDir, message.id);
 			if (syncedCount > 0) {
 				log.logInfo(`[${channelId}] Synced ${syncedCount} messages from log.jsonl`);
 			}
@@ -665,29 +685,21 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			// Update system prompt with fresh memory, channel/user info, and skills
 			const memory = getMemory(channelDir);
 			const skills = loadMomSkills(channelDir, workspacePath);
-			const systemPrompt = buildSystemPrompt(
-				workspacePath,
-				channelId,
-				memory,
-				sandboxConfig,
-				ctx.channels,
-				ctx.users,
-				skills,
-			);
+			const systemPrompt = buildSystemPrompt(workspacePath, channelId, memory, sandboxConfig, platform, skills);
 			session.agent.setSystemPrompt(systemPrompt);
 
 			// Set up file upload function
 			setUploadFunction(async (filePath: string, title?: string) => {
 				const hostPath = translateToHostPath(filePath, channelDir, workspacePath, channelId);
-				await ctx.uploadFile(hostPath, title);
+				await responseCtx.uploadFile(hostPath, title);
 			});
 
 			// Reset per-run state
-			runState.ctx = ctx;
+			runState.responseCtx = responseCtx;
 			runState.logCtx = {
-				channelId: ctx.message.channel,
-				userName: ctx.message.userName,
-				channelName: ctx.channelName,
+				channelId: sessionChannel,
+				userName: message.userName,
+				channelName: undefined,
 			};
 			runState.pendingTools.clear();
 			runState.totalUsage = {
@@ -709,20 +721,20 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 							await fn();
 						} catch (err) {
 							const errMsg = err instanceof Error ? err.message : String(err);
-							log.logWarning(`Slack API error (${errorContext})`, errMsg);
+							log.logWarning(`API error (${errorContext})`, errMsg);
 							try {
-								await ctx.respondInThread(`_Error: ${errMsg}_`);
+								await responseCtx.respondInThread(`_Error: ${errMsg}_`);
 							} catch {
 								// Ignore
 							}
 						}
 					});
 				},
-				enqueueMessage(text: string, target: "main" | "thread", errorContext: string, doLog = true): void {
+				enqueueMessage(text: string, target: "main" | "thread", errorContext: string, _doLog = true): void {
 					const parts = splitForSlack(text);
 					for (const part of parts) {
 						this.enqueue(
-							() => (target === "main" ? ctx.respond(part, doLog) : ctx.respondInThread(part)),
+							() => (target === "main" ? responseCtx.respond(part) : responseCtx.respondInThread(part)),
 							errorContext,
 						);
 					}
@@ -731,7 +743,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 
 			// Log context info
 			log.logInfo(`Context sizes - system: ${systemPrompt.length} chars, memory: ${memory.length} chars`);
-			log.logInfo(`Channels: ${ctx.channels.length}, Users: ${ctx.users.length}`);
+			log.logInfo(`Channels: ${platform.channels.length}, Users: ${platform.users.length}`);
 
 			// Build user message with timestamp and username prefix
 			// Format: "[YYYY-MM-DD HH:MM:SS+HH:MM] [username]: message" so LLM knows when and who
@@ -742,14 +754,15 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			const offsetHours = pad(Math.floor(Math.abs(offset) / 60));
 			const offsetMins = pad(Math.abs(offset) % 60);
 			const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}${offsetSign}${offsetHours}:${offsetMins}`;
-			let userMessage = `[${timestamp}] [${ctx.message.userName || "unknown"}]: ${ctx.message.text}`;
+			let userMessage = `[${timestamp}] [${message.userName || "unknown"}]: ${message.text}`;
 
 			const imageAttachments: ImageContent[] = [];
 			const nonImagePaths: string[] = [];
 
-			for (const a of ctx.message.attachments || []) {
-				const fullPath = `${workspacePath}/${a.local}`;
-				const mimeType = getImageMimeType(a.local);
+			for (const a of message.attachments || []) {
+				// a.localPath is the path relative to the workspace (same as old a.local)
+				const fullPath = `${workspacePath}/${a.localPath}`;
+				const mimeType = getImageMimeType(a.localPath);
 
 				if (mimeType && existsSync(fullPath)) {
 					try {
@@ -787,8 +800,8 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 			// Handle error case - update main message and post error to thread
 			if (runState.stopReason === "error" && runState.errorMessage) {
 				try {
-					await ctx.replaceMessage("_Sorry, something went wrong_");
-					await ctx.respondInThread(`_Error: ${runState.errorMessage}_`);
+					await responseCtx.replaceResponse("_Sorry, something went wrong_");
+					await responseCtx.respondInThread(`_Error: ${runState.errorMessage}_`);
 				} catch (err) {
 					const errMsg = err instanceof Error ? err.message : String(err);
 					log.logWarning("Failed to post error message", errMsg);
@@ -806,7 +819,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 				// Check for [SILENT] marker - delete message and thread instead of posting
 				if (finalText.trim() === "[SILENT]" || finalText.trim().startsWith("[SILENT]")) {
 					try {
-						await ctx.deleteMessage();
+						await responseCtx.deleteResponse();
 						log.logInfo("Silent response - deleted message and thread");
 					} catch (err) {
 						const errMsg = err instanceof Error ? err.message : String(err);
@@ -818,7 +831,7 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 							finalText.length > SLACK_MAX_LENGTH
 								? `${finalText.substring(0, SLACK_MAX_LENGTH - 50)}\n\n_(see thread for full response)_`
 								: finalText;
-						await ctx.replaceMessage(mainText);
+						await responseCtx.replaceResponse(mainText);
 					} catch (err) {
 						const errMsg = err instanceof Error ? err.message : String(err);
 						log.logWarning("Failed to replace message with final text", errMsg);
@@ -844,12 +857,12 @@ function createRunner(sandboxConfig: SandboxConfig, channelId: string, channelDi
 				const contextWindow = model.contextWindow || 200000;
 
 				const summary = log.logUsageSummary(runState.logCtx!, runState.totalUsage, contextTokens, contextWindow);
-				runState.queue.enqueue(() => ctx.respondInThread(summary), "usage summary");
+				runState.queue.enqueue(() => responseCtx.respondInThread(summary), "usage summary");
 				await queueChain;
 			}
 
 			// Clear run state
-			runState.ctx = null;
+			runState.responseCtx = null;
 			runState.logCtx = null;
 			runState.queue = null;
 
