@@ -3,7 +3,7 @@ import { existsSync, type FSWatcher, mkdirSync, readdirSync, statSync, unlinkSyn
 import { readFile } from "fs/promises";
 import { join } from "path";
 import * as log from "./log.js";
-import type { SlackBot, SlackEvent } from "./slack.js";
+import type { SlackBot, SlackEvent } from "./adapters/slack/index.js";
 
 // ============================================================================
 // Event Types
