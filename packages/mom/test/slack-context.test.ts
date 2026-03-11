@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
-import { createSlackAdapters } from "../src/adapters/slack/context.js";
+import { describe, expect, test, vi } from "vitest";
 import type { SlackBot, SlackEvent } from "../src/adapters/slack/bot.js";
+import { createSlackAdapters } from "../src/adapters/slack/context.js";
 
 // ============================================================================
 // Minimal SlackBot mock

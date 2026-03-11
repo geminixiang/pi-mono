@@ -22,7 +22,7 @@ import { loadAgentConfig } from "./config.js";
 import { createMomSettingsManager, syncLogToSessionManager } from "./context.js";
 import * as log from "./log.js";
 import { createExecutor, type SandboxConfig } from "./sandbox.js";
-import { createMomTools, setUploadFunction } from "./tools/index.js";
+import { createMomTools } from "./tools/index.js";
 
 export interface PendingMessage {
 	userName: string;
@@ -412,8 +412,8 @@ function createRunner(
 	const executor = createExecutor(sandboxConfig);
 	const workspacePath = executor.getWorkspacePath(channelDir.replace(`/${channelId}`, ""));
 
-	// Create tools
-	const tools = createMomTools(executor);
+	// Create tools (per-runner, with per-runner upload function setter)
+	const { tools, setUploadFunction } = createMomTools(executor);
 
 	// Resolve model from config
 	// Use 'as any' cast because agentConfig.provider/model are plain strings,
