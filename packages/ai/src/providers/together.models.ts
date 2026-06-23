@@ -236,7 +236,7 @@ export const TOGETHER_MODELS = {
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"supportsLongCacheRetention":false,"thinkingFormat":"together"},
 		reasoning: true,
 		thinkingLevelMap: {"minimal":null,"low":null,"medium":null},
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 1.2,
 			output: 4.5,

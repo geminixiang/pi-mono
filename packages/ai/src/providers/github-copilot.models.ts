@@ -187,7 +187,7 @@ export const GITHUB_COPILOT_MODELS = {
 		headers: {"User-Agent":"GitHubCopilotChat/0.35.0","Editor-Version":"vscode/1.107.0","Editor-Plugin-Version":"copilot-chat/0.35.0","Copilot-Integration-Id":"vscode-chat"},
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 1.25,
 			output: 10,
@@ -206,7 +206,7 @@ export const GITHUB_COPILOT_MODELS = {
 		headers: {"User-Agent":"GitHubCopilotChat/0.35.0","Editor-Version":"vscode/1.107.0","Editor-Plugin-Version":"copilot-chat/0.35.0","Copilot-Integration-Id":"vscode-chat"},
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.5,
 			output: 3,
@@ -225,7 +225,7 @@ export const GITHUB_COPILOT_MODELS = {
 		headers: {"User-Agent":"GitHubCopilotChat/0.35.0","Editor-Version":"vscode/1.107.0","Editor-Plugin-Version":"copilot-chat/0.35.0","Copilot-Integration-Id":"vscode-chat"},
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 2,
 			output: 12,
@@ -244,7 +244,7 @@ export const GITHUB_COPILOT_MODELS = {
 		headers: {"User-Agent":"GitHubCopilotChat/0.35.0","Editor-Version":"vscode/1.107.0","Editor-Plugin-Version":"copilot-chat/0.35.0","Copilot-Integration-Id":"vscode-chat"},
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 1.5,
 			output: 9,

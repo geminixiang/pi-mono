@@ -12,7 +12,7 @@ export const XIAOMI_TOKEN_PLAN_AMS_MODELS = {
 		baseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
 		compat: {"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.4,
 			output: 2,
@@ -48,7 +48,7 @@ export const XIAOMI_TOKEN_PLAN_AMS_MODELS = {
 		baseUrl: "https://token-plan-ams.xiaomimimo.com/v1",
 		compat: {"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.4,
 			output: 2,

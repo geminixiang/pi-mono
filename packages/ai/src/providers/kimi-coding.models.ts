@@ -12,7 +12,7 @@ export const KIMI_CODING_MODELS = {
 		baseUrl: "https://api.kimi.com/coding",
 		headers: {"User-Agent":"KimiCLI/1.5"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0,
 			output: 0,
@@ -30,7 +30,7 @@ export const KIMI_CODING_MODELS = {
 		baseUrl: "https://api.kimi.com/coding",
 		headers: {"User-Agent":"KimiCLI/1.5"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0,
 			output: 0,

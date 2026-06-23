@@ -88,7 +88,7 @@ export const OPENCODE_GO_MODELS = {
 		compat: {"thinkingFormat":"deepseek","supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false},
 		reasoning: true,
 		thinkingLevelMap: {"minimal":null,"low":null,"medium":null},
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.95,
 			output: 4,
@@ -106,7 +106,7 @@ export const OPENCODE_GO_MODELS = {
 		baseUrl: "https://opencode.ai/zen/go/v1",
 		compat: {"maxTokensField":"max_tokens"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.95,
 			output: 4,
@@ -124,7 +124,7 @@ export const OPENCODE_GO_MODELS = {
 		baseUrl: "https://opencode.ai/zen/go/v1",
 		compat: {"maxTokensField":"max_tokens"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.14,
 			output: 0.28,
@@ -177,7 +177,7 @@ export const OPENCODE_GO_MODELS = {
 		provider: "opencode-go",
 		baseUrl: "https://opencode.ai/zen/go",
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.1,
 			output: 0.4,
@@ -195,7 +195,7 @@ export const OPENCODE_GO_MODELS = {
 		baseUrl: "https://opencode.ai/zen/go/v1",
 		compat: {"thinkingFormat":"qwen","maxTokensField":"max_tokens"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.5,
 			output: 3,
@@ -229,7 +229,7 @@ export const OPENCODE_GO_MODELS = {
 		provider: "opencode-go",
 		baseUrl: "https://opencode.ai/zen/go",
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.4,
 			output: 1.6,

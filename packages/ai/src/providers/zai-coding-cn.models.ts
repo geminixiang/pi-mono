@@ -103,7 +103,7 @@ export const ZAI_CODING_CN_MODELS = {
 		baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
 		compat: {"supportsDeveloperRole":false,"thinkingFormat":"zai","zaiToolStream":true},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0,
 			output: 0,

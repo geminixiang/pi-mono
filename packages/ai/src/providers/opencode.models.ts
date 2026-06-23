@@ -247,7 +247,7 @@ export const OPENCODE_MODELS = {
 		baseUrl: "https://opencode.ai/zen/v1",
 		reasoning: true,
 		thinkingLevelMap: {"off":null},
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.5,
 			output: 3,
@@ -265,7 +265,7 @@ export const OPENCODE_MODELS = {
 		baseUrl: "https://opencode.ai/zen/v1",
 		reasoning: true,
 		thinkingLevelMap: {"off":null,"minimal":null,"low":"LOW","medium":null,"high":"HIGH"},
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 2,
 			output: 12,
@@ -283,7 +283,7 @@ export const OPENCODE_MODELS = {
 		baseUrl: "https://opencode.ai/zen/v1",
 		reasoning: true,
 		thinkingLevelMap: {"off":null},
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 1.5,
 			output: 9,
@@ -644,7 +644,7 @@ export const OPENCODE_MODELS = {
 		baseUrl: "https://opencode.ai/zen/v1",
 		compat: {"maxTokensField":"max_tokens","supportsLongCacheRetention":false},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.6,
 			output: 3,
@@ -662,7 +662,7 @@ export const OPENCODE_MODELS = {
 		baseUrl: "https://opencode.ai/zen/v1",
 		compat: {"thinkingFormat":"deepseek","supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsLongCacheRetention":false},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.95,
 			output: 4,
@@ -680,7 +680,7 @@ export const OPENCODE_MODELS = {
 		baseUrl: "https://opencode.ai/zen/v1",
 		compat: {"maxTokensField":"max_tokens"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0,
 			output: 0,
@@ -769,7 +769,7 @@ export const OPENCODE_MODELS = {
 		provider: "opencode",
 		baseUrl: "https://opencode.ai/zen",
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.2,
 			output: 1.2,
@@ -786,7 +786,7 @@ export const OPENCODE_MODELS = {
 		provider: "opencode",
 		baseUrl: "https://opencode.ai/zen",
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.5,
 			output: 3,

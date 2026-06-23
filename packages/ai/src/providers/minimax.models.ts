@@ -45,7 +45,7 @@ export const MINIMAX_MODELS = {
 		provider: "minimax",
 		baseUrl: "https://api.minimax.io/anthropic",
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.6,
 			output: 2.4,

@@ -11,7 +11,7 @@ export const AMAZON_BEDROCK_MODELS = {
 		provider: "amazon-bedrock",
 		baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.33,
 			output: 2.75,
@@ -28,7 +28,7 @@ export const AMAZON_BEDROCK_MODELS = {
 		provider: "amazon-bedrock",
 		baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
 		reasoning: false,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.06,
 			output: 0.24,
@@ -62,7 +62,7 @@ export const AMAZON_BEDROCK_MODELS = {
 		provider: "amazon-bedrock",
 		baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
 		reasoning: false,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.8,
 			output: 3.2,

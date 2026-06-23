@@ -45,7 +45,7 @@ export const MINIMAX_CN_MODELS = {
 		provider: "minimax-cn",
 		baseUrl: "https://api.minimaxi.com/anthropic",
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.6,
 			output: 2.4,

@@ -30,7 +30,7 @@ export const XIAOMI_MODELS = {
 		baseUrl: "https://api.xiaomimimo.com/v1",
 		compat: {"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.4,
 			output: 2,
@@ -66,7 +66,7 @@ export const XIAOMI_MODELS = {
 		baseUrl: "https://api.xiaomimimo.com/v1",
 		compat: {"requiresReasoningContentOnAssistantMessages":true,"thinkingFormat":"deepseek"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.4,
 			output: 2,
