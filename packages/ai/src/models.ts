@@ -11,6 +11,7 @@ import type {
 	Context,
 	Model,
 	ModelThinkingLevel,
+	ProviderHeaders,
 	ProviderStreams,
 	SimpleStreamOptions,
 	StreamOptions,
@@ -33,7 +34,7 @@ export interface Provider<TApi extends Api = Api> {
 	readonly name: string;
 
 	readonly baseUrl?: string;
-	readonly headers?: Record<string, string>;
+	readonly headers?: ProviderHeaders;
 
 	/**
 	 * Required: at least one of `apiKey`/`oauth`. Every provider has auth
@@ -236,10 +237,11 @@ class ModelsImpl implements MutableModels {
 
 		const requestModel = auth.baseUrl ? { ...model, baseUrl: auth.baseUrl } : model;
 
-		// Explicit request options win per-field; headers merge per header.
+		// Explicit request options win per-field; headers/env merge per key.
 		const apiKey = options?.apiKey ?? auth.apiKey;
 		const headers = auth.headers || options?.headers ? { ...auth.headers, ...options?.headers } : undefined;
-		const requestOptions = { ...options, apiKey, headers } as TOptions;
+		const env = resolution.env || options?.env ? { ...(resolution.env ?? {}), ...(options?.env ?? {}) } : undefined;
+		const requestOptions = { ...options, apiKey, headers, env } as TOptions;
 
 		return { requestModel, requestOptions };
 	}
@@ -286,7 +288,7 @@ export interface CreateProviderOptions<TApi extends Api = Api> {
 	/** Display name. Default: `id`. */
 	name?: string;
 	baseUrl?: string;
-	headers?: Record<string, string>;
+	headers?: ProviderHeaders;
 	/** Required — every provider has auth semantics, even ambient/keyless ones. */
 	auth: ProviderAuth;
 	/** Initial model list (empty for purely dynamic providers). */
