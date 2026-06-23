@@ -436,6 +436,22 @@ function roundCost(value: number): number {
 	return Number(value.toFixed(6));
 }
 
+/**
+ * Normalize an array of input modalities from models.dev into the canonical
+ * `Model.input` shape. The upstream Moonshot `/v1/models` endpoints
+ * (https://api.moonshot.ai/v1/models and https://api.moonshot.cn/v1/models)
+ * expose richer per-model flags (`supports_image_in`, `supports_video_in`, etc.)
+ * but require a valid API key, so the generator currently relies on
+ * models.dev metadata and only preserves the modalities it understands.
+ */
+function normalizeInputModalities(input: string[] | undefined): ("text" | "image" | "video" | "audio")[] {
+	const modalities: ("text" | "image" | "video" | "audio")[] = ["text"];
+	for (const modality of ["image", "video", "audio"] as const) {
+		if (input?.includes(modality)) modalities.push(modality);
+	}
+	return modalities;
+}
+
 async function fetchNvidiaNimModelIds(): Promise<Map<string, string>> {
 	try {
 		console.log("Fetching models from NVIDIA NIM API...");
@@ -475,7 +491,7 @@ async function fetchOpenRouterModels(): Promise<Model<any>[]> {
 			modelKey = model.id; // Keep full ID for OpenRouter
 
 			// Parse input modalities
-			const input: ("text" | "image")[] = ["text"];
+			const input: ("text" | "image" | "video" | "audio")[] = ["text"];
 			if (model.architecture?.modality?.includes("image")) {
 				input.push("image");
 			}
@@ -535,7 +551,7 @@ async function fetchAiGatewayModels(): Promise<Model<any>[]> {
 			// Only include models that support tools
 			if (!tags.includes("tool-use")) continue;
 
-			const input: ("text" | "image")[] = ["text"];
+			const input: ("text" | "image" | "video" | "audio")[] = ["text"];
 			if (tags.includes("vision")) {
 				input.push("image");
 			}
@@ -606,7 +622,7 @@ async function loadModelsDevData(): Promise<Model<any>[]> {
 					provider: "amazon-bedrock" as const,
 					baseUrl: getBedrockBaseUrl(id),
 					reasoning: m.reasoning === true,
-					input: (m.modalities?.input?.includes("image") ? ["text", "image"] : ["text"]) as ("text" | "image")[],
+					input: (m.modalities?.input?.includes("image") ? ["text", "image"] : ["text"]) as ("text" | "image" | "video" | "audio")[],
 					cost: {
 						input: m.cost?.input || 0,
 						output: m.cost?.output || 0,
@@ -1381,7 +1397,7 @@ async function loadModelsDevData(): Promise<Model<any>[]> {
 					provider,
 					baseUrl,
 					reasoning: m.reasoning === true,
-					input: m.modalities?.input?.includes("image") ? ["text", "image"] : ["text"],
+					input: normalizeInputModalities(m.modalities?.input),
 					cost: {
 						input: m.cost?.input || 0,
 						output: m.cost?.output || 0,

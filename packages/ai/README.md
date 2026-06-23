@@ -388,7 +388,8 @@ Built-in providers resolve these env vars (Node.js; in browsers pass `apiKey` ex
 | ZAI Coding Plan (China) | `ZAI_CODING_CN_API_KEY` |
 | MiniMax (Global) | `MINIMAX_API_KEY` |
 | MiniMax (China) | `MINIMAX_CN_API_KEY` |
-| Moonshot AI / Moonshot AI (China) | `MOONSHOT_API_KEY` |
+| Moonshot AI | `MOONSHOT_API_KEY` |
+| Moonshot AI (China) | `MOONSHOT_CN_API_KEY` |
 | Hugging Face | `HF_TOKEN` |
 | OpenCode Zen / OpenCode Go | `OPENCODE_API_KEY` |
 | Kimi For Coding | `KIMI_API_KEY` |

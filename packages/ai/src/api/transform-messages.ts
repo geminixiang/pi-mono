@@ -7,17 +7,26 @@ import type {
 	TextContent,
 	ToolCall,
 	ToolResultMessage,
+	VideoContent,
 } from "../types.ts";
 
 const NON_VISION_USER_IMAGE_PLACEHOLDER = "(image omitted: model does not support images)";
 const NON_VISION_TOOL_IMAGE_PLACEHOLDER = "(tool image omitted: model does not support images)";
+const NON_VIDEO_USER_PLACEHOLDER = "(video omitted: model does not support videos)";
+const NON_VIDEO_TOOL_PLACEHOLDER = "(tool video omitted: model does not support videos)";
 
-function replaceImagesWithPlaceholder(content: (TextContent | ImageContent)[], placeholder: string): TextContent[] {
-	const result: TextContent[] = [];
+function replaceImagesWithPlaceholder<TApi extends Api>(
+	content: (TextContent | ImageContent | VideoContent)[],
+	imagePlaceholder: string,
+	videoPlaceholder: string,
+	model: Model<TApi>,
+): (TextContent | ImageContent | VideoContent)[] {
+	const result: (TextContent | ImageContent | VideoContent)[] = [];
 	let previousWasPlaceholder = false;
 
 	for (const block of content) {
-		if (block.type === "image") {
+		if ((block.type === "image" || block.type === "video") && !supportsMimeType(model, block.mimeType)) {
+			const placeholder = block.type === "video" ? videoPlaceholder : imagePlaceholder;
 			if (!previousWasPlaceholder) {
 				result.push({ type: "text", text: placeholder });
 			}
@@ -26,34 +35,47 @@ function replaceImagesWithPlaceholder(content: (TextContent | ImageContent)[], p
 		}
 
 		result.push(block);
-		previousWasPlaceholder = block.text === placeholder;
+		previousWasPlaceholder =
+			block.type === "text" && (block.text === imagePlaceholder || block.text === videoPlaceholder);
 	}
 
 	return result;
 }
 
 function downgradeUnsupportedImages<TApi extends Api>(messages: Message[], model: Model<TApi>): Message[] {
-	if (model.input.includes("image")) {
-		return messages;
-	}
-
 	return messages.map((msg) => {
 		if (msg.role === "user" && Array.isArray(msg.content)) {
 			return {
 				...msg,
-				content: replaceImagesWithPlaceholder(msg.content, NON_VISION_USER_IMAGE_PLACEHOLDER),
+				content: replaceImagesWithPlaceholder(
+					msg.content,
+					NON_VISION_USER_IMAGE_PLACEHOLDER,
+					NON_VIDEO_USER_PLACEHOLDER,
+					model,
+				),
 			};
 		}
 
 		if (msg.role === "toolResult") {
 			return {
 				...msg,
-				content: replaceImagesWithPlaceholder(msg.content, NON_VISION_TOOL_IMAGE_PLACEHOLDER),
+				content: replaceImagesWithPlaceholder(
+					msg.content,
+					NON_VISION_TOOL_IMAGE_PLACEHOLDER,
+					NON_VIDEO_TOOL_PLACEHOLDER,
+					model,
+				),
 			};
 		}
 
 		return msg;
 	});
+}
+
+function supportsMimeType<TApi extends Api>(model: Model<TApi>, mimeType: string): boolean {
+	if (mimeType.startsWith("video/")) return model.input.includes("video");
+	if (mimeType.startsWith("audio/")) return model.input.includes("audio");
+	return model.input.includes("image");
 }
 
 /**

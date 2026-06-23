@@ -42,6 +42,7 @@ import {
 	type Tool,
 	type ToolCall,
 	type ToolResultMessage,
+	type VideoContent,
 } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -186,14 +187,17 @@ function sanitizeSurrogates(text: string): string {
 }
 
 function convertContentBlocks(
-	content: (TextContent | ImageContent)[],
+	content: (TextContent | ImageContent | VideoContent)[],
 ): string | Array<{ type: "text"; text: string } | { type: "image"; source: any }> {
-	const hasImages = content.some((c) => c.type === "image");
+	const mediaSafeContent = content.map((c): TextContent | ImageContent =>
+		c.type === "video" ? { type: "text", text: "(video omitted: model does not support videos)" } : c,
+	);
+	const hasImages = mediaSafeContent.some((c) => c.type === "image");
 	if (!hasImages) {
-		return sanitizeSurrogates(content.map((c) => (c as TextContent).text).join("\n"));
+		return sanitizeSurrogates(mediaSafeContent.map((c) => (c as TextContent).text).join("\n"));
 	}
 
-	const blocks = content.map((block) => {
+	const blocks = mediaSafeContent.map((block) => {
 		if (block.type === "text") {
 			return { type: "text" as const, text: sanitizeSurrogates(block.text) };
 		}

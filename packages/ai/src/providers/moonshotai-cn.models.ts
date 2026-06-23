@@ -102,7 +102,7 @@ export const MOONSHOTAI_CN_MODELS = {
 		baseUrl: "https://api.moonshot.cn/v1",
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"thinkingFormat":"deepseek"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.6,
 			output: 3,
@@ -120,7 +120,7 @@ export const MOONSHOTAI_CN_MODELS = {
 		baseUrl: "https://api.moonshot.cn/v1",
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"thinkingFormat":"deepseek"},
 		reasoning: true,
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.95,
 			output: 4,
@@ -139,7 +139,7 @@ export const MOONSHOTAI_CN_MODELS = {
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"thinkingFormat":"deepseek"},
 		reasoning: true,
 		thinkingLevelMap: {"off":null},
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 0.95,
 			output: 4,
@@ -158,7 +158,7 @@ export const MOONSHOTAI_CN_MODELS = {
 		compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":false,"maxTokensField":"max_tokens","supportsStrictMode":false,"thinkingFormat":"deepseek"},
 		reasoning: true,
 		thinkingLevelMap: {"off":null},
-		input: ["text", "image"],
+		input: ["text", "image", "video"],
 		cost: {
 			input: 1.9,
 			output: 8,

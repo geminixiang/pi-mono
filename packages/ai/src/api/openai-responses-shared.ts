@@ -26,6 +26,7 @@ import type {
 	Tool,
 	ToolCall,
 	Usage,
+	VideoContent,
 } from "../types.ts";
 import type { AssistantMessageEventStream } from "../utils/event-stream.ts";
 import { shortHash } from "../utils/hash.ts";
@@ -148,11 +149,7 @@ export function convertResponsesMessages<TApi extends Api>(
 							text: sanitizeSurrogates(item.text),
 						} satisfies ResponseInputText;
 					}
-					return {
-						type: "input_image",
-						detail: "auto",
-						image_url: `data:${item.mimeType};base64,${item.data}`,
-					} satisfies ResponseInputImage;
+					return toResponsesContentPart(item);
 				});
 				if (content.length === 0) continue;
 				messages.push({
@@ -224,12 +221,12 @@ export function convertResponsesMessages<TApi extends Api>(
 				.filter((c): c is TextContent => c.type === "text")
 				.map((c) => c.text)
 				.join("\n");
-			const hasImages = msg.content.some((c): c is ImageContent => c.type === "image");
+			const hasMedia = msg.content.some((c) => c.type === "image" || c.type === "video");
 			const hasText = textResult.length > 0;
 			const [callId] = msg.toolCallId.split("|");
 
 			let output: string | ResponseFunctionCallOutputItemList;
-			if (hasImages && model.input.includes("image")) {
+			if (hasMedia) {
 				const contentParts: ResponseFunctionCallOutputItemList = [];
 
 				if (hasText) {
@@ -240,12 +237,8 @@ export function convertResponsesMessages<TApi extends Api>(
 				}
 
 				for (const block of msg.content) {
-					if (block.type === "image") {
-						contentParts.push({
-							type: "input_image",
-							detail: "auto",
-							image_url: `data:${block.mimeType};base64,${block.data}`,
-						});
+					if ((block.type === "image" || block.type === "video") && supportsMimeType(model, block.mimeType)) {
+						contentParts.push(toResponsesContentPart(block));
 					}
 				}
 
@@ -264,6 +257,27 @@ export function convertResponsesMessages<TApi extends Api>(
 	}
 
 	return messages;
+}
+
+function toResponsesContentPart(item: ImageContent | VideoContent): ResponseInputContent {
+	const dataUrl = `data:${item.mimeType};base64,${item.data}`;
+	if (item.mimeType.startsWith("video/")) {
+		return { type: "input_video", video_url: dataUrl } as unknown as ResponseInputContent;
+	}
+	if (item.mimeType.startsWith("audio/")) {
+		return { type: "input_audio", audio_url: dataUrl } as unknown as ResponseInputContent;
+	}
+	return {
+		type: "input_image",
+		detail: "auto",
+		image_url: dataUrl,
+	} satisfies ResponseInputImage;
+}
+
+function supportsMimeType<TApi extends Api>(model: Model<TApi>, mimeType: string): boolean {
+	if (mimeType.startsWith("video/")) return model.input.includes("video");
+	if (mimeType.startsWith("audio/")) return model.input.includes("audio");
+	return model.input.includes("image");
 }
 
 // =============================================================================

@@ -12,6 +12,7 @@ import type {
 } from "openai/resources/chat/completions.js";
 import { calculateCost, clampThinkingLevel } from "../models.ts";
 import type {
+	Api,
 	AssistantMessage,
 	CacheRetention,
 	ChatTemplateKwargValue,
@@ -30,6 +31,7 @@ import type {
 	Tool,
 	ToolCall,
 	ToolResultMessage,
+	VideoContent,
 } from "../types.ts";
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
 import { headersToRecord } from "../utils/headers.ts";
@@ -73,8 +75,8 @@ function isToolCallBlock(block: { type: string }): block is ToolCall {
 	return block.type === "toolCall";
 }
 
-function isImageContentBlock(block: { type: string }): block is ImageContent {
-	return block.type === "image";
+function isMediaContentBlock(block: { type: string }): block is ImageContent | VideoContent {
+	return block.type === "image" || block.type === "video";
 }
 
 function isEncryptedReasoningDetail(detail: unknown): detail is OpenAIEncryptedReasoningDetail {
@@ -890,20 +892,14 @@ export function convertMessages(
 					content: sanitizeSurrogates(msg.content),
 				});
 			} else {
-				const content: ChatCompletionContentPart[] = msg.content.map((item): ChatCompletionContentPart => {
+				const content = msg.content.map((item): ChatCompletionContentPart => {
 					if (item.type === "text") {
 						return {
 							type: "text",
 							text: sanitizeSurrogates(item.text),
 						} satisfies ChatCompletionContentPartText;
-					} else {
-						return {
-							type: "image_url",
-							image_url: {
-								url: `data:${item.mimeType};base64,${item.data}`,
-							},
-						} satisfies ChatCompletionContentPartImage;
 					}
+					return toOpenAIContentPart(item);
 				});
 				if (content.length === 0) continue;
 				params.push({
@@ -1013,7 +1009,7 @@ export function convertMessages(
 			}
 			params.push(assistantMsg);
 		} else if (msg.role === "toolResult") {
-			const imageBlocks: Array<{ type: "image_url"; image_url: { url: string } }> = [];
+			const mediaBlocks: ChatCompletionContentPart[] = [];
 			let j = i;
 
 			for (; j < transformedMessages.length && transformedMessages[j].role === "toolResult"; j++) {
@@ -1024,7 +1020,7 @@ export function convertMessages(
 					.filter(isTextContentBlock)
 					.map((block) => block.text)
 					.join("\n");
-				const hasImages = toolMsg.content.some((c) => c.type === "image");
+				const hasMedia = toolMsg.content.some((c) => c.type === "image" || c.type === "video");
 
 				// Always send tool result with text (or placeholder if only images)
 				const hasText = textResult.length > 0;
@@ -1039,15 +1035,10 @@ export function convertMessages(
 				}
 				params.push(toolResultMsg);
 
-				if (hasImages && model.input.includes("image")) {
+				if (hasMedia) {
 					for (const block of toolMsg.content) {
-						if (isImageContentBlock(block)) {
-							imageBlocks.push({
-								type: "image_url",
-								image_url: {
-									url: `data:${block.mimeType};base64,${block.data}`,
-								},
-							});
+						if (isMediaContentBlock(block) && supportsMimeType(model, block.mimeType)) {
+							mediaBlocks.push(toOpenAIContentPart(block));
 						}
 					}
 				}
@@ -1055,7 +1046,7 @@ export function convertMessages(
 
 			i = j - 1;
 
-			if (imageBlocks.length > 0) {
+			if (mediaBlocks.length > 0) {
 				if (compat.requiresAssistantAfterToolResult) {
 					params.push({
 						role: "assistant",
@@ -1068,9 +1059,9 @@ export function convertMessages(
 					content: [
 						{
 							type: "text",
-							text: "Attached image(s) from tool result:",
+							text: "Attached media from tool result:",
 						},
-						...imageBlocks,
+						...mediaBlocks,
 					],
 				});
 				lastRole = "user";
@@ -1084,6 +1075,26 @@ export function convertMessages(
 	}
 
 	return params;
+}
+
+function toOpenAIContentPart(item: ImageContent | VideoContent): ChatCompletionContentPart {
+	const dataUrl = `data:${item.mimeType};base64,${item.data}`;
+	if (item.mimeType.startsWith("video/")) {
+		return { type: "video_url", video_url: { url: dataUrl } } as unknown as ChatCompletionContentPart;
+	}
+	if (item.mimeType.startsWith("audio/")) {
+		return { type: "audio_url", audio_url: { url: dataUrl } } as unknown as ChatCompletionContentPart;
+	}
+	return {
+		type: "image_url",
+		image_url: { url: dataUrl },
+	} satisfies ChatCompletionContentPartImage;
+}
+
+function supportsMimeType<TApi extends Api>(model: Model<TApi>, mimeType: string): boolean {
+	if (mimeType.startsWith("video/")) return model.input.includes("video");
+	if (mimeType.startsWith("audio/")) return model.input.includes("audio");
+	return model.input.includes("image");
 }
 
 function convertTools(

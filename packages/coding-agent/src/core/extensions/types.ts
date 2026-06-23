@@ -1407,7 +1407,7 @@ export interface ProviderModelConfig {
 	/** Maps pi thinking levels to provider/model-specific values; null marks a level unsupported. */
 	thinkingLevelMap?: Model<Api>["thinkingLevelMap"];
 	/** Supported input types. */
-	input: ("text" | "image")[];
+	input: Model<Api>["input"];
 	/** Cost per token (for tracking, can be 0). */
 	cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
 	/** Maximum context window size in tokens. */

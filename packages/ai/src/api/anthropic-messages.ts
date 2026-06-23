@@ -27,6 +27,7 @@ import type {
 	Tool,
 	ToolCall,
 	ToolResultMessage,
+	VideoContent,
 } from "../types.ts";
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
 import { headersToRecord } from "../utils/headers.ts";
@@ -111,7 +112,7 @@ const fromClaudeCodeName = (name: string, tools?: Tool[]) => {
 /**
  * Convert content blocks to Anthropic API format
  */
-function convertContentBlocks(content: (TextContent | ImageContent)[]):
+function convertContentBlocks(content: (TextContent | ImageContent | VideoContent)[]):
 	| string
 	| Array<
 			| { type: "text"; text: string }
@@ -125,13 +126,16 @@ function convertContentBlocks(content: (TextContent | ImageContent)[]):
 			  }
 	  > {
 	// If only text blocks, return as concatenated string for simplicity
-	const hasImages = content.some((c) => c.type === "image");
+	const mediaSafeContent = content.map((c): TextContent | ImageContent =>
+		c.type === "video" ? { type: "text", text: "(video omitted: model does not support videos)" } : c,
+	);
+	const hasImages = mediaSafeContent.some((c) => c.type === "image");
 	if (!hasImages) {
-		return sanitizeSurrogates(content.map((c) => (c as TextContent).text).join("\n"));
+		return sanitizeSurrogates(mediaSafeContent.map((c) => (c as TextContent).text).join("\n"));
 	}
 
 	// If we have images, convert to content block array
-	const blocks = content.map((block) => {
+	const blocks = mediaSafeContent.map((block) => {
 		if (block.type === "text") {
 			return {
 				type: "text" as const,
