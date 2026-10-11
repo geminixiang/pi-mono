@@ -69,7 +69,7 @@ export function normalizeSessionName(value: string): string | undefined {
 	return name.length > 0 ? name : undefined;
 }
 
-export function parseArgs(args: string[]): Args {
+export function parseArgs(args: string[], booleanFlags?: ReadonlySet<string>): Args {
 	const result: Args = {
 		messages: [],
 		fileArgs: [],
@@ -253,7 +253,7 @@ export function parseArgs(args: string[]): Args {
 			} else {
 				const flagName = arg.slice(2);
 				const next = args[i + 1];
-				if (next !== undefined && !next.startsWith("-") && !next.startsWith("@")) {
+				if (!booleanFlags?.has(flagName) && next !== undefined && !next.startsWith("-") && !next.startsWith("@")) {
 					result.unknownFlags.set(flagName, next);
 					i++;
 				} else {

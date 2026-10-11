@@ -541,6 +541,13 @@ describe("parseArgs", () => {
 			expect(result.unknownFlags.get("unknown-flag")).toBe(true);
 		});
 
+		// #7139
+		test("known boolean flags do not consume the following message", () => {
+			const result = parseArgs(["--plan", "list the files here"], new Set(["plan"]));
+			expect(result.messages).toEqual(["list the files here"]);
+			expect(result.unknownFlags.get("plan")).toBe(true);
+		});
+
 		test("captures unknown long flags with equals syntax", () => {
 			const result = parseArgs(["--unknown-flag=value"]);
 			expect(result.unknownFlags.get("unknown-flag")).toBe("value");

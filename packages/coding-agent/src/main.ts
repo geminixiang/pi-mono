@@ -870,15 +870,15 @@ export async function main(args: string[], options?: MainOptions) {
 	time("createAgentSessionRuntime");
 	const { services, session, modelFallbackMessage } = runtime;
 	const { settingsManager, modelRuntime, resourceLoader } = services;
+	const extensionFlags = resourceLoader
+		.getExtensions()
+		.extensions.flatMap((extension) => Array.from(extension.flags.values()));
 	setCapabilityOverrides(settingsManager.getTerminalCapabilityOverrides());
 	applyHttpProxySettings(settingsManager.getGlobalSettings().httpProxy);
 	configureHttpDispatcher(settingsManager.getHttpIdleTimeoutMs());
 
 	if (parsed.help) {
 		reportDiagnostics(startupSettingsDiagnostics);
-		const extensionFlags = resourceLoader
-			.getExtensions()
-			.extensions.flatMap((extension) => Array.from(extension.flags.values()));
 		printHelp(extensionFlags);
 		process.exit(0);
 	}
@@ -900,6 +900,10 @@ export async function main(args: string[], options?: MainOptions) {
 	}
 	time("readPipedStdin");
 
+	const booleanExtensionFlags = new Set(
+		extensionFlags.filter((flag) => flag.type === "boolean").map((flag) => flag.name),
+	);
+	parsed.messages = parseArgs(args, booleanExtensionFlags).messages;
 	const { initialMessage, initialImages } = await prepareInitialMessage(parsed, stdinContent);
 	time("prepareInitialMessage");
 	initTheme(settingsManager.getTheme(), appMode === "interactive");
